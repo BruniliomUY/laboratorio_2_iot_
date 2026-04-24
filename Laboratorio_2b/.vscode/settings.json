@@ -3,7 +3,6 @@
   "idf.openOcdConfigs": [
     "board/esp32s2-kaluga-1.cfg"
   ],
-  "idf.portWin": "detect",
   "idf.currentSetup": "C:\\esp\\v6.0\\esp-idf",
   "idf.customExtraVars": {
     "IDF_TARGET": "esp32s2"
@@ -12,6 +11,8 @@
   "clangd.arguments": [
     "--background-index",
     "--query-driver=**",
-    "--compile-commands-dir=c:\\Users\\bruno\\OneDrive\\Desktop\\Laboratorio_1_iot\\build"
-  ]
+    "--compile-commands-dir=c:\\Users\\bruno\\OneDrive\\Desktop\\laboratorio_2_iot_\\Laboratorio_2b\\softap_sta\\build"
+  ],
+  "idf.flashType": "UART",
+  "idf.portWin": "COM10"
 }
