@@ -5,7 +5,7 @@ menu "Example Configuration"
 
         config ESP_WIFI_AP_SSID
             string "WiFi AP SSID"
-            default "prueba_esp"
+            default "esp"
             help
                 SSID (network name) of the AP for the example to connect to.
 
@@ -24,7 +24,7 @@ menu "Example Configuration"
 
         config ESP_MAX_STA_CONN_AP
             int "Maximal STA connections"
-            default 4
+            default 1
             help
                 Max number of the STA connects to AP.
     endmenu
@@ -34,13 +34,13 @@ menu "Example Configuration"
 
         config ESP_WIFI_REMOTE_AP_SSID
             string "WiFi Remote AP SSID"
-            default "otherapssid"
+            default "prueba_wifi"
             help
                 SSID (network name) for the example's sta to connect to.
 
         config ESP_WIFI_REMOTE_AP_PASSWORD
             string "WiFi Remote AP Password"
-            default "otherappassword"
+            default "12345678"
             help
                 WiFi password for the example to use.
 
@@ -53,7 +53,7 @@ menu "Example Configuration"
 
         choice ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD
             prompt "WiFi Scan auth mode threshold"
-            default ESP_WIFI_AUTH_WPA2_PSK
+            default ESP_WIFI_AUTH_OPEN
             help
                 The weakest authmode to accept in the scan mode.
                 This value defaults to ESP_WIFI_AUTH_WPA2_PSK in case password is present

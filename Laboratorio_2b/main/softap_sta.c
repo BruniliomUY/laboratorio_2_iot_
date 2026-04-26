@@ -93,7 +93,16 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
         ESP_LOGI(TAG_STA, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
-        wifi_conectado = true;
+        wifi_conectado = true; //Señalamos que estamos conectados
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
+            esp_wifi_connect();
+            s_retry_num++;
+            ESP_LOGI(TAG_STA, "Reintentando conectar al AP... (Intento %d)", s_retry_num);
+        } else {
+            wifi_fallo = true; // Señalamos al bucle while que deje de esperar
+            ESP_LOGE(TAG_STA, "Fallo definitivo al conectar al AP");
+        }
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_ASSIGNED_IP_TO_CLIENT) {
         const ip_event_assigned_ip_to_client_t *e = (const ip_event_assigned_ip_to_client_t *)event_data;
         ESP_LOGI(TAG_AP, "Assigned IP to client: " IPSTR ", MAC=" MACSTR ", hostname='%s'",
@@ -114,6 +123,7 @@ esp_netif_t *wifi_init_softap(void)
             .password = EXAMPLE_ESP_WIFI_AP_PASSWD,
             .max_connection = EXAMPLE_MAX_STA_CONN,
             .authmode = WIFI_AUTH_WPA2_PSK,
+            .ssid_hidden = 0,
             .pmf_cfg = {
                 .required = false,
             },
@@ -237,8 +247,8 @@ void app_main(void)
     /* Set sta as the default interface */
     esp_netif_set_default_netif(esp_netif_sta);
 
-    /* Enable napt on the AP netif */
-    if (esp_netif_napt_enable(esp_netif_ap) != ESP_OK) {
-        ESP_LOGE(TAG_STA, "NAPT not enabled on the netif: %p", esp_netif_ap);
-    }
+    ///* Enable napt on the AP netif */
+    //if (esp_netif_napt_enable(esp_netif_ap) != ESP_OK) {
+    //    ESP_LOGE(TAG_STA, "NAPT not enabled on the netif: %p", esp_netif_ap);
+    //} Esta funcionalidad es para que acctue como repitidor wifi
 }
