@@ -14,5 +14,5 @@
     "--compile-commands-dir=c:\\Users\\bruno\\OneDrive\\Desktop\\laboratorio_2_iot_\\Laboratorio_2b\\softap_sta\\build"
   ],
   "idf.flashType": "UART",
-  "idf.portWin": "COM10"
+  "idf.portWin": "COM6"
 }

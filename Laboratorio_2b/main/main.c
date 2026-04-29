@@ -171,6 +171,34 @@ esp_netif_t *wifi_init_sta(void)
     return esp_netif_sta;
 }
 
+//Servidor 
+//handler
+esp_err_t http_get_handler(httpd_req_t *req)
+{
+    const char* resp_str = "Hello, World!";
+    httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
+}
+//inicialización del servidor
+httpd_handle_t start_webserver(void)
+{
+    httpd_handle_t server = NULL;
+    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+
+    // Iniciar el servidor
+    if (httpd_start(&server, &config) == ESP_OK) {
+        // Registrar URI handler
+        httpd_uri_t uri_get = {
+            .uri      = "/",
+            .method   = HTTP_GET,
+            .handler  = http_get_handler,
+            .user_ctx = NULL
+        };
+        httpd_register_uri_handler(server, &uri_get);
+    }
+    return server;
+}
+
 void softap_set_dns_addr(esp_netif_t *esp_netif_ap,esp_netif_t *esp_netif_sta)
 {
     esp_netif_dns_info_t dns;
@@ -245,6 +273,11 @@ void app_main(void)
     } else {
         ESP_LOGE(TAG_STA, "Fallo al conectar");
     }
+
+    start_webserver();
+
+    ESP_LOGI("web", "Servidor web iniciado. Accede a http://<IP_DEL_ESP32>/hello para ver la respuesta.");
+
     /* Set sta as the default interface */
     esp_netif_set_default_netif(esp_netif_sta);
 
