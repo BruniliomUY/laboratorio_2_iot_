@@ -172,11 +172,24 @@ esp_netif_t *wifi_init_sta(void)
 }
 
 //Servidor 
+//HTML de index
+extern const uint8_t index_html_start[] asm("_binary_index_html_start"); 
+extern const uint8_t index_html_end[]   asm("_binary_index_html_end"); 
+
 //handler
 esp_err_t http_get_handler(httpd_req_t *req)
 {
+    /*
     const char* resp_str = "Hello, World!";
     httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
+    */
+
+    const char *html = (const char *) index_html_start;
+    size_t html_len = index_html_end - index_html_start;
+
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_send(req, html, html_len);
+
     return ESP_OK;
 }
 //inicialización del servidor
@@ -276,7 +289,7 @@ void app_main(void)
 
     start_webserver();
 
-    ESP_LOGI("web", "Servidor web iniciado. Accede a http://<IP_DEL_ESP32>/hello para ver la respuesta.");
+    ESP_LOGI("web", "Servidor web iniciado. Accede a http://192.168.4.1 para ver la respuesta.");
 
     /* Set sta as the default interface */
     esp_netif_set_default_netif(esp_netif_sta);
