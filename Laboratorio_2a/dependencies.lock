@@ -1,0 +1,24 @@
+dependencies:
+  espressif/touch_element:
+    component_hash: 4020a05836c1c290cfd2b0ea6529c88cb6d8ac1d0f041e53534ef65552461712
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.3'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32s2
+    - esp32s3
+    version: 1.1.2
+  idf:
+    source:
+      type: idf
+    version: 6.0.0
+direct_dependencies:
+- espressif/touch_element
+- idf
+manifest_hash: bf83f230451bb16a9badb165833220397aa91dbe86d1013490925cd877f40cef
+target: esp32s2
+version: 3.0.0

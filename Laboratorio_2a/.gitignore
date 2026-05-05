@@ -1,0 +1,134 @@
+# =========================
+# macOS
+# =========================
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Directory metadata
+.directory
+
+# =========================
+# Temporary files
+# =========================
+*~
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# =========================
+# Log files
+# =========================
+*.log
+
+# =========================
+# Build artifacts and directories
+# =========================
+**/build/
+build/
+*.o
+*.a
+*.out
+*.exe
+
+# =========================
+# ESP-IDF build outputs
+# =========================
+*.bin
+*.elf
+*.map
+*.hex
+*.uf2
+flasher_args.json
+
+# Este NO se sube porque es respaldo automático
+sdkconfig.old
+
+# IMPORTANTE:
+# sdkconfig SÍ se sube porque la consigna lo pide
+!sdkconfig
+
+# =========================
+# ESP-IDF dependencies
+# =========================
+
+# Componentes internos viejos/generados
+/components/.idf/
+**/components/.idf/
+
+# IMPORTANTE:
+# managed_components SÍ se sube porque querés que el repo tenga esos componentes
+!managed_components/
+!managed_components/**
+
+# Herramientas locales de Espressif, no subir
+.espressif/
+
+# =========================
+# CMake generated files
+# =========================
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+compile_commands.json
+
+# =========================
+# Python environment files
+# =========================
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.egg-info/
+dist/
+
+# =========================
+# Virtual environment folders
+# =========================
+venv/
+.venv/
+env/
+
+# =========================
+# Language Servers
+# =========================
+.ccls-cache/
+
+# Si .clangd es archivo y lo querés subir, NO lo ignores.
+# Si alguna vez se genera como carpeta, se ignora:
+.clangd/
+
+# =========================
+# Windows specific
+# =========================
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# =========================
+# User-specific configuration files
+# =========================
+*.user
+*.workspace
+*.code-workspace
+*.suo
+*.sln.docstates
+
+# =========================
+# Editor local config
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# Mantener estructura mínima del laboratorio
+# =========================
+!CMakeLists.txt
+!main/
+!main/**
+!components/
+!components/**
+!.gitignore
