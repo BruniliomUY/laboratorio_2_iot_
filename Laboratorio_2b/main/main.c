@@ -19,6 +19,8 @@
 #include "esp_netif.h"
 #include "nvs_flash.h"
 #include "esp_http_server.h"
+#include "cJSON.h"
+#include "rgb_led.h"
 #if IP_NAPT
 #endif
 
@@ -176,7 +178,7 @@ esp_netif_t *wifi_init_sta(void)
 extern const uint8_t index_html_start[] asm("_binary_index_html_start"); 
 extern const uint8_t index_html_end[]   asm("_binary_index_html_end"); 
 
-//handler
+//handlers
 esp_err_t http_get_handler(httpd_req_t *req)
 {
     /*
@@ -192,6 +194,60 @@ esp_err_t http_get_handler(httpd_req_t *req)
 
     return ESP_OK;
 }
+
+esp_err_t http_led_post_handler(httpd_req_t *req)
+{
+    //Leer request
+    int total_len = req->content_len;
+    char *buf = malloc(total_len + 1);
+    int recibido = 0;
+
+    if (!buf){
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "No hay memoria");
+        return ESP_FAIL;
+    }
+
+    while (recibido < total_len) {
+        int len = httpd_req_recv(req, buf + recibido, total_len - recibido);
+        if (len <= 0) {
+            free(buf);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Error al recibir datos");
+            return ESP_FAIL;
+        }
+        recibido += len;
+    }
+
+    buf[total_len] = '\0'; // Aseguramos la terminación nula
+
+    //Parsear JSON
+    cJSON *json = cJSON_Parse(buf);
+    if(!json){
+        free(buf);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "JSON inválido");
+        return ESP_FAIL;
+    }
+
+    //Leer los valores
+    cJSON *r = cJSON_GetObjectItem(json, "r");
+    cJSON *g = cJSON_GetObjectItem(json, "g");
+    cJSON *b = cJSON_GetObjectItem(json, "b");
+
+    if (cJSON_IsNumber(r) && cJSON_IsNumber(g) && cJSON_IsNumber(b)) {
+        rgb_led_set_color(r->valueint, g->valueint, b->valueint);
+    } else {
+        cJSON_Delete(json);
+        free(buf);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Faltan campos r, g o b o no son números");
+        return ESP_FAIL;
+    }
+
+    httpd_resp_sendstr(req, "LED actualizado");
+    cJSON_Delete(json);
+    free(buf);
+
+    return ESP_OK;
+}
+
 //inicialización del servidor
 httpd_handle_t start_webserver(void)
 {
@@ -208,7 +264,17 @@ httpd_handle_t start_webserver(void)
             .user_ctx = NULL
         };
         httpd_register_uri_handler(server, &uri_get);
+
+        httpd_uri_t uri_post_led = {
+            .uri      = "/",
+            .method   = HTTP_POST,
+            .handler  = http_led_post_handler,
+            .user_ctx = NULL
+        };
+
+        httpd_register_uri_handler(server, &uri_post_led);
     }
+
     return server;
 }
 
