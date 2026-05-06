@@ -353,6 +353,8 @@ void app_main(void)
         ESP_LOGE(TAG_STA, "Fallo al conectar");
     }
 
+    rgb_led_init();
+
     start_webserver();
 
     ESP_LOGI("web", "Servidor web iniciado. Accede a http://192.168.4.1 para ver la respuesta.");

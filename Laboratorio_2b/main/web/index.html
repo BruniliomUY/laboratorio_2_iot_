@@ -8,9 +8,38 @@
 
 <button type="button" onclick='document.getElementById("prueba").innerHTML = "Boton presionado!"'> Testear poner boton </button>
 
-<p2> Cambiar color de led <br></p2>    
+<h2> Cambiar color de led <br></h2>    
 
+R: <input type="number" id="r" name="r" min="0" max="255"><br>
+G: <input type="number" id="g" name="g" min="0" max="255"><br>
+B: <input type="number" id="b" name="b" min="0" max="255"><br>
 
+<button type="button" onclick='Mandar_Color()'> Cambiar color </button>
+
+<script>
+    function Mandar_Color() {
+        const r = document.getElementById("r").value;
+        const g = document.getElementById("g").value;
+        const b = document.getElementById("b").value;
+
+        fetch('/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ r: parseInt(r), g: parseInt(g), b: parseInt(b) })
+        })
+        .then(response => response.text())
+        .then(data => {
+            console.log('Respuesta:', data);
+            alert('Color cambiado!');
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+            alert('Error al cambiar el color');
+        });
+    }
+</script>
 
 </body>
 </html>     
