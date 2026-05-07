@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<body onload="Consultar_Estado_LED()">
+
+<h1>Hello world, probando</h1>
+
+<p id="prueba">Si leo esto, funciono<br></p>
+
+<button type="button"
+        onclick='document.getElementById("prueba").innerHTML = "Boton presionado!"'>
+    Testear poner boton
+</button>
+
+<h2>Estado actual del LED</h2>
+<p id="estado_led">Estado: desconocido</p>
+<p id="color_led">Color actual: R=0, G=0, B=0</p>
+
+<h2>Cambiar color de led</h2>
+
+R: <input type="range" id="r" min="0" max="255" value="0">
+<span id="rVal">0</span><br>
+
+G: <input type="range" id="g" min="0" max="255" value="0">
+<span id="gVal">0</span><br>
+
+B: <input type="range" id="b" min="0" max="255" value="0">
+<span id="bVal">0</span><br>
+
+<script>
+
+const r = document.getElementById("r");
+const g = document.getElementById("g");
+const b = document.getElementById("b");
+
+const rVal = document.getElementById("rVal");
+const gVal = document.getElementById("gVal");
+const bVal = document.getElementById("bVal");
+
+let timeout;
+
+// Cuando se mueve cualquier slider
+r.oninput = g.oninput = b.oninput = () => {
+
+    // Actualizar números mostrados
+    rVal.textContent = r.value;
+    gVal.textContent = g.value;
+    bVal.textContent = b.value;
+
+    // Cancelar envío anterior
+    clearTimeout(timeout);
+
+    // Esperar un poco antes de enviar
+    timeout = setTimeout(() => {
+
+        fetch('/led', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                r: parseInt(r.value),
+                g: parseInt(g.value),
+                b: parseInt(b.value)
+            })
+        })
+        .then(response => response.text())
+        .then(data => {
+
+            console.log('Respuesta:', data);
+
+            document.getElementById("estado_led").innerHTML =
+                "Estado: encendido";
+
+            document.getElementById("color_led").innerHTML =
+                "Color actual: R=" + r.value +
+                ", G=" + g.value +
+                ", B=" + b.value;
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+        });
+
+    }, 10);
+};
+
+function Consultar_Estado_LED() {
+
+    fetch('/led', {
+        method: 'GET'
+    })
+    .then(response => response.json())
+    .then(data => {
+
+        document.getElementById("estado_led").innerHTML =
+            data.on ? "Estado: encendido" : "Estado: apagado";
+
+        document.getElementById("color_led").innerHTML =
+            "Color actual: R=" + data.r +
+            ", G=" + data.g +
+            ", B=" + data.b;
+
+        // Actualizar sliders
+        r.value = data.r;
+        g.value = data.g;
+        b.value = data.b;
+
+        rVal.textContent = data.r;
+        gVal.textContent = data.g;
+        bVal.textContent = data.b;
+    })
+    .catch((error) => {
+        console.error('Error al consultar el estado del LED:', error);
+    });
+}
+
+</script>
+
+</body>
+</html>

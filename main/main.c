@@ -3,15 +3,19 @@
  *
  * SPDX-License-Identifier: Unlicense OR CC0-1.0
  */
-/*  WiFi softAP & station Example
 
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
+/*
+ * WiFi softAP & station Example
+ */
 
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
+#include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdbool.h>
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
 #include "esp_mac.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
@@ -19,95 +23,111 @@
 #include "esp_netif.h"
 #include "nvs_flash.h"
 #include "esp_http_server.h"
+
 #include "cJSON.h"
 #include "rgb_led.h"
-#if IP_NAPT
-#endif
-
-/* The examples use WiFi configuration that you can set via project configuration menu.
-
-   If you'd rather not, just change the below entries to strings with
-   the config you want - ie #define EXAMPLE_ESP_WIFI_STA_SSID "mywifissid"
-*/
 
 /* STA Configuration */
-#define EXAMPLE_ESP_WIFI_STA_SSID           CONFIG_ESP_WIFI_REMOTE_AP_SSID
-#define EXAMPLE_ESP_WIFI_STA_PASSWD         CONFIG_ESP_WIFI_REMOTE_AP_PASSWORD
-#define EXAMPLE_ESP_MAXIMUM_RETRY           CONFIG_ESP_MAXIMUM_STA_RETRY
+#define EXAMPLE_ESP_WIFI_STA_SSID      CONFIG_ESP_WIFI_REMOTE_AP_SSID
+#define EXAMPLE_ESP_WIFI_STA_PASSWD    CONFIG_ESP_WIFI_REMOTE_AP_PASSWORD
+#define EXAMPLE_ESP_MAXIMUM_RETRY      CONFIG_ESP_MAXIMUM_STA_RETRY
 
 #if CONFIG_ESP_WIFI_AUTH_OPEN
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_OPEN
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_OPEN
 #elif CONFIG_ESP_WIFI_AUTH_WEP
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WEP
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WEP
 #elif CONFIG_ESP_WIFI_AUTH_WPA_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WPA_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA_PSK
 #elif CONFIG_ESP_WIFI_AUTH_WPA2_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WPA2_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_PSK
 #elif CONFIG_ESP_WIFI_AUTH_WPA_WPA2_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WPA_WPA2_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA_WPA2_PSK
 #elif CONFIG_ESP_WIFI_AUTH_WPA3_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WPA3_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA3_PSK
 #elif CONFIG_ESP_WIFI_AUTH_WPA2_WPA3_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WPA2_WPA3_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_WPA3_PSK
 #elif CONFIG_ESP_WIFI_AUTH_WAPI_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WAPI_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WAPI_PSK
 #endif
 
 /* AP Configuration */
-#define EXAMPLE_ESP_WIFI_AP_SSID            CONFIG_ESP_WIFI_AP_SSID
-#define EXAMPLE_ESP_WIFI_AP_PASSWD          CONFIG_ESP_WIFI_AP_PASSWORD
-#define EXAMPLE_ESP_WIFI_CHANNEL            CONFIG_ESP_WIFI_AP_CHANNEL
-#define EXAMPLE_MAX_STA_CONN                CONFIG_ESP_MAX_STA_CONN_AP
+#define EXAMPLE_ESP_WIFI_AP_SSID       CONFIG_ESP_WIFI_AP_SSID
+#define EXAMPLE_ESP_WIFI_AP_PASSWD     CONFIG_ESP_WIFI_AP_PASSWORD
+#define EXAMPLE_ESP_WIFI_CHANNEL       CONFIG_ESP_WIFI_AP_CHANNEL
+#define EXAMPLE_MAX_STA_CONN           CONFIG_ESP_MAX_STA_CONN_AP
 
-
-/* The event group allows multiple bits for each event, but we only care about two events:
- * - we are connected to the AP with an IP
- * - we failed to connect after the maximum amount of retries */
-#define WIFI_CONNECTED_BIT BIT0
-#define WIFI_FAIL_BIT      BIT1
-
-/*DHCP server option*/
-#define DHCPS_OFFER_DNS             0x02
+/* DHCP server option */
+#define DHCPS_OFFER_DNS 0x02
 
 static const char *TAG_AP = "WiFi SoftAP";
 static const char *TAG_STA = "WiFi Sta";
 
 static int s_retry_num = 0;
 
-// Usamos esto (volatile es importante para que el compilador sepa que cambia en otro hilo):
 static volatile bool wifi_conectado = false;
 static volatile bool wifi_fallo = false;
 
-static void wifi_event_handler(void *arg, esp_event_base_t event_base,
-                               int32_t event_id, void *event_data)
+/* Estado actual del LED */
+static int led_r = 0;
+static int led_g = 0;
+static int led_b = 0;
+static bool led_on = false;
+
+/* HTML de index embebido */
+extern const uint8_t index_html_start[] asm("_binary_index_html_start");
+extern const uint8_t index_html_end[]   asm("_binary_index_html_end");
+
+/* Actualiza el LED físico y guarda el estado actual */
+static void set_led_state(int r, int g, int b)
+{
+    led_r = r;
+    led_g = g;
+    led_b = b;
+
+    led_on = !(r == 0 && g == 0 && b == 0);
+
+    rgb_led_set_color(r, g, b);
+}
+
+static void wifi_event_handler(void *arg,
+                               esp_event_base_t event_base,
+                               int32_t event_id,
+                               void *event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED) {
         wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *) event_data;
-        ESP_LOGI(TAG_AP, "Station "MACSTR" joined, AID=%d",
+        ESP_LOGI(TAG_AP, "Station " MACSTR " joined, AID=%d",
                  MAC2STR(event->mac), event->aid);
+
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED) {
         wifi_event_ap_stadisconnected_t *event = (wifi_event_ap_stadisconnected_t *) event_data;
-        ESP_LOGI(TAG_AP, "Station "MACSTR" left, AID=%d, reason:%d",
+        ESP_LOGI(TAG_AP, "Station " MACSTR " left, AID=%d, reason:%d",
                  MAC2STR(event->mac), event->aid, event->reason);
+
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
         ESP_LOGI(TAG_STA, "Station started");
+
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
         ESP_LOGI(TAG_STA, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
-        wifi_conectado = true; //Señalamos que estamos conectados
+        wifi_conectado = true;
+
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
             esp_wifi_connect();
             s_retry_num++;
             ESP_LOGI(TAG_STA, "Reintentando conectar al AP... (Intento %d)", s_retry_num);
         } else {
-            wifi_fallo = true; // Señalamos al bucle while que deje de esperar
+            wifi_fallo = true;
             ESP_LOGE(TAG_STA, "Fallo definitivo al conectar al AP");
         }
+
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_ASSIGNED_IP_TO_CLIENT) {
-        const ip_event_assigned_ip_to_client_t *e = (const ip_event_assigned_ip_to_client_t *)event_data;
+        const ip_event_assigned_ip_to_client_t *e =
+            (const ip_event_assigned_ip_to_client_t *) event_data;
+
         ESP_LOGI(TAG_AP, "Assigned IP to client: " IPSTR ", MAC=" MACSTR ", hostname='%s'",
                  IP2STR(&e->ip), MAC2STR(e->mac), e->hostname);
     }
@@ -140,12 +160,14 @@ esp_netif_t *wifi_init_softap(void)
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_ap_config));
 
     ESP_LOGI(TAG_AP, "wifi_init_softap finished. SSID:%s password:%s channel:%d",
-             EXAMPLE_ESP_WIFI_AP_SSID, EXAMPLE_ESP_WIFI_AP_PASSWD, EXAMPLE_ESP_WIFI_CHANNEL);
+             EXAMPLE_ESP_WIFI_AP_SSID,
+             EXAMPLE_ESP_WIFI_AP_PASSWD,
+             EXAMPLE_ESP_WIFI_CHANNEL);
 
     return esp_netif_ap;
 }
 
-/* Initialize wifi station */
+/* Initialize WiFi station */
 esp_netif_t *wifi_init_sta(void)
 {
     esp_netif_t *esp_netif_sta = esp_netif_create_default_wifi_sta();
@@ -156,36 +178,20 @@ esp_netif_t *wifi_init_sta(void)
             .password = EXAMPLE_ESP_WIFI_STA_PASSWD,
             .scan_method = WIFI_ALL_CHANNEL_SCAN,
             .failure_retry_cnt = EXAMPLE_ESP_MAXIMUM_RETRY,
-            /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
-             * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
-             * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
-            * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
-             */
             .threshold.authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD,
             .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
         },
     };
 
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_sta_config) );
-
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_sta_config));
     ESP_LOGI(TAG_STA, "wifi_init_sta finished.");
 
     return esp_netif_sta;
 }
 
-//Servidor 
-//HTML de index
-extern const uint8_t index_html_start[] asm("_binary_index_html_start"); 
-extern const uint8_t index_html_end[]   asm("_binary_index_html_end"); 
-
-//handlers
+/* Respuesta para cargar la página principal */
 esp_err_t http_get_handler(httpd_req_t *req)
 {
-    /*
-    const char* resp_str = "Hello, World!";
-    httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
-    */
-
     const char *html = (const char *) index_html_start;
     size_t html_len = index_html_end - index_html_start;
 
@@ -195,80 +201,112 @@ esp_err_t http_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+/* Recibe JSON por POST /led y actualiza el LED */
 esp_err_t http_led_post_handler(httpd_req_t *req)
 {
-    //Leer request
     int total_len = req->content_len;
     char *buf = malloc(total_len + 1);
     int recibido = 0;
 
-    if (!buf){
+    if (!buf) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "No hay memoria");
         return ESP_FAIL;
     }
 
     while (recibido < total_len) {
         int len = httpd_req_recv(req, buf + recibido, total_len - recibido);
+
         if (len <= 0) {
             free(buf);
             httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Error al recibir datos");
             return ESP_FAIL;
         }
+
         recibido += len;
     }
 
-    buf[total_len] = '\0'; // Aseguramos la terminación nula
+    buf[total_len] = '\0';
 
-    //Parsear JSON
     cJSON *json = cJSON_Parse(buf);
-    if(!json){
+
+    if (!json) {
         free(buf);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "JSON inválido");
         return ESP_FAIL;
     }
 
-    //Leer los valores
     cJSON *r = cJSON_GetObjectItem(json, "r");
     cJSON *g = cJSON_GetObjectItem(json, "g");
     cJSON *b = cJSON_GetObjectItem(json, "b");
 
     if (cJSON_IsNumber(r) && cJSON_IsNumber(g) && cJSON_IsNumber(b)) {
-        rgb_led_set_color(r->valueint, g->valueint, b->valueint);
+        set_led_state(r->valueint, g->valueint, b->valueint);
     } else {
         cJSON_Delete(json);
         free(buf);
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Faltan campos r, g o b o no son números");
+        httpd_resp_send_err(req,
+                            HTTPD_400_BAD_REQUEST,
+                            "Faltan campos r, g o b o no son números");
         return ESP_FAIL;
     }
 
     httpd_resp_sendstr(req, "LED actualizado");
+
     cJSON_Delete(json);
     free(buf);
 
     return ESP_OK;
 }
 
-//inicialización del servidor
+/* Devuelve el estado actual del LED por GET /led */
+esp_err_t http_led_get_handler(httpd_req_t *req)
+{
+    char resp[120];
+
+    snprintf(resp,
+             sizeof(resp),
+             "{\"r\":%d,\"g\":%d,\"b\":%d,\"on\":%s}",
+             led_r,
+             led_g,
+             led_b,
+             led_on ? "true" : "false");
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, resp);
+
+    return ESP_OK;
+}
+
+/* Inicialización del servidor HTTP */
 httpd_handle_t start_webserver(void)
 {
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
 
-    // Iniciar el servidor
     if (httpd_start(&server, &config) == ESP_OK) {
-        // Registrar URI handler
+
         httpd_uri_t uri_get = {
-            .uri      = "/",
-            .method   = HTTP_GET,
-            .handler  = http_get_handler,
+            .uri = "/",
+            .method = HTTP_GET,
+            .handler = http_get_handler,
             .user_ctx = NULL
         };
+
         httpd_register_uri_handler(server, &uri_get);
 
+        httpd_uri_t uri_get_led = {
+            .uri = "/led",
+            .method = HTTP_GET,
+            .handler = http_led_get_handler,
+            .user_ctx = NULL
+        };
+
+        httpd_register_uri_handler(server, &uri_get_led);
+
         httpd_uri_t uri_post_led = {
-            .uri      = "/",
-            .method   = HTTP_POST,
-            .handler  = http_led_post_handler,
+            .uri = "/led",
+            .method = HTTP_POST,
+            .handler = http_led_post_handler,
             .user_ctx = NULL
         };
 
@@ -278,14 +316,26 @@ httpd_handle_t start_webserver(void)
     return server;
 }
 
-void softap_set_dns_addr(esp_netif_t *esp_netif_ap,esp_netif_t *esp_netif_sta)
+void softap_set_dns_addr(esp_netif_t *esp_netif_ap, esp_netif_t *esp_netif_sta)
 {
     esp_netif_dns_info_t dns;
-    esp_netif_get_dns_info(esp_netif_sta,ESP_NETIF_DNS_MAIN,&dns);
+
+    esp_netif_get_dns_info(esp_netif_sta, ESP_NETIF_DNS_MAIN, &dns);
+
     uint8_t dhcps_offer_option = DHCPS_OFFER_DNS;
+
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_stop(esp_netif_ap));
-    ESP_ERROR_CHECK(esp_netif_dhcps_option(esp_netif_ap, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &dhcps_offer_option, sizeof(dhcps_offer_option)));
-    ESP_ERROR_CHECK(esp_netif_set_dns_info(esp_netif_ap, ESP_NETIF_DNS_MAIN, &dns));
+
+    ESP_ERROR_CHECK(esp_netif_dhcps_option(esp_netif_ap,
+                                           ESP_NETIF_OP_SET,
+                                           ESP_NETIF_DOMAIN_NAME_SERVER,
+                                           &dhcps_offer_option,
+                                           sizeof(dhcps_offer_option)));
+
+    ESP_ERROR_CHECK(esp_netif_set_dns_info(esp_netif_ap,
+                                           ESP_NETIF_DNS_MAIN,
+                                           &dns));
+
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_start(esp_netif_ap));
 }
 
@@ -294,76 +344,74 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    //Initialize NVS
     esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
+        ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
+
     ESP_ERROR_CHECK(ret);
 
-    /* Register Event handler */
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-                    ESP_EVENT_ANY_ID,
-                    &wifi_event_handler,
-                    NULL,
-                    NULL));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
-                    IP_EVENT_STA_GOT_IP,
-                    &wifi_event_handler,
-                    NULL,
-                    NULL));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
-                    IP_EVENT_ASSIGNED_IP_TO_CLIENT,
-                    &wifi_event_handler,
-                    NULL,
-                    NULL));
+                                                        ESP_EVENT_ANY_ID,
+                                                        &wifi_event_handler,
+                                                        NULL,
+                                                        NULL));
 
-    /*Initialize WiFi */
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+                                                        IP_EVENT_STA_GOT_IP,
+                                                        &wifi_event_handler,
+                                                        NULL,
+                                                        NULL));
+
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+                                                        IP_EVENT_ASSIGNED_IP_TO_CLIENT,
+                                                        &wifi_event_handler,
+                                                        NULL,
+                                                        NULL));
+
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
 
-    /* Initialize AP */
     ESP_LOGI(TAG_AP, "ESP_WIFI_MODE_AP");
     esp_netif_t *esp_netif_ap = wifi_init_softap();
 
-    /* Initialize STA */
     ESP_LOGI(TAG_STA, "ESP_WIFI_MODE_STA");
     esp_netif_t *esp_netif_sta = wifi_init_sta();
 
-    /* Start WiFi */
-    ESP_ERROR_CHECK(esp_wifi_start() );
+    ESP_ERROR_CHECK(esp_wifi_start());
 
-    /*
-     * Wait until either the connection is established (WIFI_CONNECTED_BIT) or
-     * connection failed for the maximum number of re-tries (WIFI_FAIL_BIT).
-     * The bits are set by event_handler() (see above)
-     */
-    while(!wifi_conectado && !wifi_fallo) {
-        // Es obligatorio usar vTaskDelay para no bloquear el procesador y reiniciar el chip
-        vTaskDelay(100 / portTICK_PERIOD_MS); 
+    while (!wifi_conectado && !wifi_fallo) {
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 
     if (wifi_conectado) {
         ESP_LOGI(TAG_STA, "¡Conectado al AP!");
-        softap_set_dns_addr(esp_netif_ap,esp_netif_sta);
+        softap_set_dns_addr(esp_netif_ap, esp_netif_sta);
     } else {
         ESP_LOGE(TAG_STA, "Fallo al conectar");
     }
 
     rgb_led_init();
 
+    set_led_state(0, 0, 0);
+
     start_webserver();
 
-    ESP_LOGI("web", "Servidor web iniciado. Accede a http://192.168.4.1 para ver la respuesta.");
+    ESP_LOGI("web",
+             "Servidor web iniciado. Accede a http://192.168.4.1 para ver la respuesta.");
 
-    /* Set sta as the default interface */
     esp_netif_set_default_netif(esp_netif_sta);
 
-    ///* Enable napt on the AP netif */
-    //if (esp_netif_napt_enable(esp_netif_ap) != ESP_OK) {
-    //    ESP_LOGE(TAG_STA, "NAPT not enabled on the netif: %p", esp_netif_ap);
-    //} Esta funcionalidad es para que acctue como repitidor wifi
+    /*
+     * Esta funcionalidad era para que actúe como repetidor WiFi.
+     *
+     * if (esp_netif_napt_enable(esp_netif_ap) != ESP_OK) {
+     *     ESP_LOGE(TAG_STA, "NAPT not enabled on the netif: %p", esp_netif_ap);
+     * }
+     */
 }
