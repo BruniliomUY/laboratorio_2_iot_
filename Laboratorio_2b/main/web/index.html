@@ -1,117 +1,219 @@
 <!DOCTYPE html>
 <html>
-<body onload="Consultar_Estado_LED()">
 
-<h1>Hello world, probando</h1>
+<head>
 
-<p id="prueba">Si leo esto, funciono<br></p>
+</head>
 
-<button type="button"
-        onclick='document.getElementById("prueba").innerHTML = "Boton presionado!"'>
-    Testear poner boton
-</button>
+<body>
 
-<h2>Estado actual del LED</h2>
-<p id="estado_led">Estado: desconocido</p>
-<p id="color_led">Color actual: R=0, G=0, B=0</p>
+<h1>Control RGB ESP32</h1>
 
-<h2>Cambiar color de led</h2>
+<canvas id="wheel" width="300" height="300"></canvas>
 
-R: <input type="range" id="r" min="0" max="255" value="0">
-<span id="rVal">0</span><br>
-
-G: <input type="range" id="g" min="0" max="255" value="0">
-<span id="gVal">0</span><br>
-
-B: <input type="range" id="b" min="0" max="255" value="0">
-<span id="bVal">0</span><br>
+<p id="color_led">
+R=0 G=0 B=0
+</p>
 
 <script>
 
-const r = document.getElementById("r");
-const g = document.getElementById("g");
-const b = document.getElementById("b");
+const canvas = document.getElementById("wheel");
+const ctx = canvas.getContext("2d");
 
-const rVal = document.getElementById("rVal");
-const gVal = document.getElementById("gVal");
-const bVal = document.getElementById("bVal");
+const radius = 150;
+const cx = 150;
+const cy = 150;
+
+const info = document.getElementById("color_led");
+
+let dragging = false;
+
+let wheelImage;
+
+// Dibujar rueda UNA vez
+function drawWheel(){
+
+    for(let angle = 0; angle < 360; angle += 1){
+
+        const startAngle = (angle-1) * Math.PI/180;
+        const endAngle = angle * Math.PI/180;
+
+        ctx.beginPath();
+
+        ctx.moveTo(cx,cy);
+
+        ctx.arc(cx,cy,radius,startAngle,endAngle);
+
+        ctx.closePath();
+
+        ctx.fillStyle = "hsl(" + angle + ",100%,50%)";
+
+        ctx.fill();
+    }
+
+    const grad = ctx.createRadialGradient(cx,cy,0,cx,cy,radius);
+
+    grad.addColorStop(0,"white");
+    grad.addColorStop(1,"transparent");
+
+    ctx.fillStyle = grad;
+
+    ctx.beginPath();
+
+    ctx.arc(cx,cy,radius,0,2*Math.PI);
+
+    ctx.fill();
+
+    // Guardar imagen
+    wheelImage = ctx.getImageData(0,0,300,300);
+}
+
+drawWheel();
 
 let timeout;
 
-// Cuando se mueve cualquier slider
-r.oninput = g.oninput = b.oninput = () => {
+// Actualizar color
+function updateColor(clientX, clientY){
 
-    // Actualizar números mostrados
-    rVal.textContent = r.value;
-    gVal.textContent = g.value;
-    bVal.textContent = b.value;
+    const rect = canvas.getBoundingClientRect();
 
-    // Cancelar envío anterior
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
+    const dx = x - cx;
+    const dy = y - cy;
+
+    // Ignorar fuera del círculo
+    if(Math.sqrt(dx*dx + dy*dy) > radius)
+        return;
+
+    // Restaurar rueda instantáneamente
+    ctx.putImageData(wheelImage,0,0);
+
+    const pixel = ctx.getImageData(x,y,1,1).data;
+
+    const r = pixel[0];
+    const g = pixel[1];
+    const b = pixel[2];
+
+    info.innerHTML =
+        "R=" + r + " G=" + g + " B=" + b;
+
+    // Dibujar burbuja
+    ctx.beginPath();
+
+    ctx.arc(x,y,12,0,2*Math.PI);
+
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+
+    ctx.fill();
+
+    ctx.lineWidth = 3;
+
+    ctx.strokeStyle = "white";
+
+    ctx.stroke();
+
+    // Limitar requests
     clearTimeout(timeout);
 
-    // Esperar un poco antes de enviar
     timeout = setTimeout(() => {
 
         fetch('/led', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
+
+            method:'POST',
+
+            headers:{
+                'Content-Type':'application/json'
             },
+
             body: JSON.stringify({
-                r: parseInt(r.value),
-                g: parseInt(g.value),
-                b: parseInt(b.value)
+                r:r,
+                g:g,
+                b:b
             })
-        })
-        .then(response => response.text())
-        .then(data => {
-
-            console.log('Respuesta:', data);
-
-            document.getElementById("estado_led").innerHTML =
-                "Estado: encendido";
-
-            document.getElementById("color_led").innerHTML =
-                "Color actual: R=" + r.value +
-                ", G=" + g.value +
-                ", B=" + b.value;
-        })
-        .catch((error) => {
-            console.error('Error:', error);
         });
 
     }, 10);
-};
-
-function Consultar_Estado_LED() {
-
-    fetch('/led', {
-        method: 'GET'
-    })
-    .then(response => response.json())
-    .then(data => {
-
-        document.getElementById("estado_led").innerHTML =
-            data.on ? "Estado: encendido" : "Estado: apagado";
-
-        document.getElementById("color_led").innerHTML =
-            "Color actual: R=" + data.r +
-            ", G=" + data.g +
-            ", B=" + data.b;
-
-        // Actualizar sliders
-        r.value = data.r;
-        g.value = data.g;
-        b.value = data.b;
-
-        rVal.textContent = data.r;
-        gVal.textContent = data.g;
-        bVal.textContent = data.b;
-    })
-    .catch((error) => {
-        console.error('Error al consultar el estado del LED:', error);
-    });
 }
+
+// Mouse
+canvas.addEventListener("mousedown", () => dragging = true);
+
+canvas.addEventListener("mouseup", () => dragging = false);
+
+canvas.addEventListener("mouseleave", () => dragging = false);
+
+canvas.addEventListener("mousemove", (e) => {
+
+    if(dragging)
+        updateColor(e.clientX,e.clientY);
+});
+
+// Touch
+canvas.addEventListener("touchstart", (e) => {
+
+    dragging = true;
+
+    updateColor(
+        e.touches[0].clientX,
+        e.touches[0].clientY
+    );
+
+});
+
+canvas.addEventListener("touchend", () => dragging = false);
+
+canvas.addEventListener("touchmove", (e) => {
+
+    updateColor(
+        e.touches[0].clientX,
+        e.touches[0].clientY
+    );
+
+    e.preventDefault();
+
+}, { passive:false });
+canvas.addEventListener("touchmove", (e) => {
+    updateColor(e.touches[0].clientX, e.touches[0].clientY);
+    e.preventDefault();
+}, { passive:false });
+
+
+function syncColorFromServer() {
+    // Si el usuario está tocando la rueda en la web, pausamos la sincronización 
+    // para que no haya conflictos entre la web y el panel táctil.
+    if (dragging) return;
+
+    fetch('/led')
+        .then(response => response.json())
+        .then(data => {
+            // 1. Actualizar el texto con los valores RGB
+            info.innerHTML = "R=" + data.r + " G=" + data.g + " B=" + data.b;
+
+            // 2. Darle estilo visual al texto para ver el color real del LED
+            info.style.backgroundColor = `rgb(${data.r}, ${data.g}, ${data.b})`;
+            info.style.padding = "10px";
+            info.style.borderRadius = "5px";
+            info.style.display = "inline-block";
+
+            // 3. Calcular el brillo para que el texto sea legible (blanco o negro)
+            const brightness = Math.round(((parseInt(data.r) * 299) +
+                                         (parseInt(data.g) * 587) +
+                                         (parseInt(data.b) * 114)) / 1000);
+            info.style.color = (brightness > 125) ? 'black' : 'white';
+        })
+        .catch(err => console.error("Error al sincronizar con el ESP32:", err));
+}
+
+// Consultar el estado del LED cada 500 milisegundos (0.5 segundos)
+setInterval(syncColorFromServer, 50);
+
+// Ejecutarlo una vez al abrir la página para obtener el color inicial
+syncColorFromServer();
+
+</script>
+
 
 </script>
 
