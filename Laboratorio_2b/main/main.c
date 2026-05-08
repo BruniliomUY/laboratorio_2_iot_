@@ -8,13 +8,10 @@
  * WiFi softAP & station Example
  */
 
-#include <stdio.h>
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 
 #include "esp_mac.h"
 #include "esp_wifi.h"
@@ -26,6 +23,8 @@
 
 #include "cJSON.h"
 #include "rgb_led.h"
+#include "touchpad.h"
+#include "delay.h"
 
 /* STA Configuration */
 #define EXAMPLE_ESP_WIFI_STA_SSID      CONFIG_ESP_WIFI_REMOTE_AP_SSID
@@ -398,6 +397,8 @@ void app_main(void)
 
     rgb_led_init();
 
+    touchpad_init();
+
     set_led_state(0, 0, 0);
 
     start_webserver();
@@ -406,6 +407,34 @@ void app_main(void)
              "Servidor web iniciado. Accede a http://192.168.4.1 para ver la respuesta.");
 
     esp_netif_set_default_netif(esp_netif_sta);
+
+    bool last_state[TOUCHPAD_BUTTON_COUNT] = {false};
+
+while (1) {
+    for (uint8_t i = 0; i < TOUCHPAD_BUTTON_COUNT; i++) {
+        bool pressed = touchpad_is_pressed(i);
+
+        if (pressed && !last_state[i]) {
+            if (i == 0) {
+                set_led_state(255, 0, 0);      // rojo
+            } else if (i == 1) {
+                set_led_state(0, 0, 0);        // apagado
+            } else if (i == 2) {
+                set_led_state(0, 0, 255);      // azul
+            } else if (i == 3) {
+                set_led_state(255, 255, 0);    // amarillo
+            } else if (i == 4) {
+                set_led_state(255, 0, 255);    // violeta
+            } else if (i == 5) {
+                set_led_state(0, 255, 0);      // verde
+            }
+        }
+
+        last_state[i] = pressed;
+    }
+
+    delay_ms(50);
+}
 
     /*
      * Esta funcionalidad era para que actúe como repetidor WiFi.
