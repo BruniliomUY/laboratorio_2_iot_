@@ -63,7 +63,7 @@ static const char *TAG_STA = "WiFi Sta";
 
 static int s_retry_num = 0;
 
-static volatile bool wifi_conectado = false;
+static volatile bool wifi_conectado = false;    //Se crean variables globales para controlar el estado de la conexión WiFi, ya que el evento de conexión es asíncrono.Para no usar RTOS 
 static volatile bool wifi_fallo = false;
 
 /* Estado actual del LED */
@@ -111,15 +111,15 @@ static void wifi_event_handler(void *arg,
         ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
         ESP_LOGI(TAG_STA, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
-        wifi_conectado = true;
-
+        wifi_conectado = true;                  //Aasignacion de variable para controlar el estado de la conexión WiFi                                    
+ 
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
             esp_wifi_connect();
             s_retry_num++;
             ESP_LOGI(TAG_STA, "Reintentando conectar al AP... (Intento %d)", s_retry_num);
         } else {
-            wifi_fallo = true;
+            wifi_fallo = true;                //Aasignacion de variable para controlar el estado de la conexión WiFi    
             ESP_LOGE(TAG_STA, "Fallo definitivo al conectar al AP");
         }
 
