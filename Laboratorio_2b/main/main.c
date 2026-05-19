@@ -20,11 +20,15 @@
 #include "esp_netif.h"
 #include "nvs_flash.h"
 #include "esp_http_server.h"
+#include "lwip/apps/mdns.h"
+
 
 #include "cJSON.h"
 #include "rgb_led.h"
 #include "touchpad.h"
 #include "delay.h"
+
+#define HOSTNAME "esp32-iot-lab"
 
 /* STA Configuration */
 #define EXAMPLE_ESP_WIFI_STA_SSID      CONFIG_ESP_WIFI_REMOTE_AP_SSID
@@ -56,7 +60,7 @@
 #define EXAMPLE_MAX_STA_CONN           CONFIG_ESP_MAX_STA_CONN_AP
 
 /* DHCP server option */
-#define DHCPS_OFFER_DNS 0x02
+#define DHCPS_OFFER_DNS 0x06
 
 static const char *TAG_AP = "WiFi SoftAP";
 static const char *TAG_STA = "WiFi Sta";
@@ -248,15 +252,24 @@ esp_err_t http_led_post_handler(httpd_req_t *req)
                             "Faltan campos r, g o b o no son números");
         return ESP_FAIL;
     }
-
-    httpd_resp_sendstr(req, "LED actualizado");
-
+//que mande los datos que recibio
+    char response[80];
+    int len = snprintf(response,
+                       sizeof(response),
+                       "LED actualizado: r=%d, g=%d, b=%d",
+                       r->valueint,
+                       g->valueint,
+                       b->valueint);
+    if (len < 0 || len >= (int)sizeof(response)) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Error al generar respuesta");
+    } else {
+        httpd_resp_sendstr(req, response);
+    }
     cJSON_Delete(json);
     free(buf);
 
     return ESP_OK;
 }
-
 /* Devuelve el estado actual del LED por GET /led */
 esp_err_t http_led_get_handler(httpd_req_t *req)
 {
@@ -314,7 +327,8 @@ httpd_handle_t start_webserver(void)
 
     return server;
 }
-
+/*
+//revisar donde se usa
 void softap_set_dns_addr(esp_netif_t *esp_netif_ap, esp_netif_t *esp_netif_sta)
 {
     esp_netif_dns_info_t dns;
@@ -337,7 +351,7 @@ void softap_set_dns_addr(esp_netif_t *esp_netif_ap, esp_netif_t *esp_netif_sta)
 
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_start(esp_netif_ap));
 }
-
+*/
 void app_main(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());
@@ -385,12 +399,12 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_wifi_start());
 
     while (!wifi_conectado && !wifi_fallo) {
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+        delay_ms(100);
     }
 
     if (wifi_conectado) {
         ESP_LOGI(TAG_STA, "¡Conectado al AP!");
-        softap_set_dns_addr(esp_netif_ap, esp_netif_sta);
+        //softap_set_dns_addr(esp_netif_ap, esp_netif_sta);
     } else {
         ESP_LOGE(TAG_STA, "Fallo al conectar");
     }
@@ -400,7 +414,7 @@ void app_main(void)
     touchpad_init();
 
     set_led_state(0, 0, 0);
-
+    
     start_webserver();
 
     ESP_LOGI("web",

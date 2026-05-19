@@ -5,7 +5,7 @@ menu "Example Configuration"
 
         config ESP_WIFI_AP_SSID
             string "WiFi AP SSID"
-            default "esp"
+            default "bruno_esp_ap"
             help
                 SSID (network name) of the AP for the example to connect to.
 
@@ -34,13 +34,13 @@ menu "Example Configuration"
 
         config ESP_WIFI_REMOTE_AP_SSID
             string "WiFi Remote AP SSID"
-            default "prueba_wifi"
+            default "Pixel_7Pro"
             help
                 SSID (network name) for the example's sta to connect to.
 
         config ESP_WIFI_REMOTE_AP_PASSWORD
             string "WiFi Remote AP Password"
-            default "12345678"
+            default "digoprimito73"
             help
                 WiFi password for the example to use.
 
