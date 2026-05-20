@@ -20,7 +20,7 @@
 #include "esp_private/touch_sensor_legacy_hal.h"
 #include "esp_private/touch_element_private.h"
 #include "esp_rom_sys.h"
-
+#include "esp_err.h"
 
 #define TE_CLASS_ITEM(cls, cls_type, cls_item)  ((&((cls)[cls_type]))->cls_item)
 

@@ -1,10 +1,11 @@
-#include <stdio.h>
+#include "esp_log.h"
 #include <stdbool.h>
 #include "rgb_led.h"
 #include "delay.h"
 #include "touchpad.h"
 
 #define POLLING_PERIOD_MS 50
+static const char *TAG = "MAIN";
 
 void app_main(void)
 {
@@ -18,7 +19,7 @@ void app_main(void)
             bool pressed = touchpad_is_pressed(i);
 
             if (pressed && !last_state[i]) {
-                printf("Boton %d presionado\n", i);
+                ESP_LOGI(TAG, "Boton %d presionado", i);
 
                 if (i == 0) {
                     rgb_led_set_color(255, 0, 0);//volumen up = rojo
@@ -37,7 +38,7 @@ void app_main(void)
             }
 
             if (!pressed && last_state[i]) {
-                printf("Boton %d liberado\n", i);
+                ESP_LOGI(TAG, "Boton %d liberado", i);
             }
 
             last_state[i] = pressed;

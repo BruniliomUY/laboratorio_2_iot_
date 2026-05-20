@@ -1,6 +1,7 @@
 #include "touchpad.h"
-
+#include <stdbool.h>
 #include <stdio.h>
+#include <stdint.h>
 #include "esp_err.h"
 #include "touch_element/touch_element.h"
 #include "touch_element/touch_button.h"
